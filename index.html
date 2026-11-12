@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dots &amp; Boxes </title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="studio-shell">
+    <!-- Top Header -->
+    <header class="studio-header" role="banner">
+      <div class="brand-block">
+        <div class="brand-title-row">
+          <span class="course-tag">CSL304</span>
+          <h1 class="studio-title">Dots &amp; Boxes</h1>
+        </div>
+      </div>
+
+      <div class="header-toolbar" role="toolbar" aria-label="Analysis and display controls">
+        <button id="btn-ai-hint" class="btn btn-accent" type="button" title="Run the reference agent on a cloned board state without interrupting gameplay">
+          <span class="btn-dot"></span> AI Hint / Explain Move
+        </button>
+
+        <button id="btn-sound-toggle" class="btn btn-ghost" type="button" aria-pressed="true" title="Toggle Web Audio move feedback">
+          Audio: On
+        </button>
+
+        <button id="btn-theme-toggle" class="btn btn-ghost" type="button" title="Switch between Warm Paper (Light) and Deep Slate (Dark) studio themes">
+          Theme: Paper
+        </button>
+      </div>
+    </header>
+
+    <!-- Main 3-Column Workspace -->
+    <main class="studio-grid" role="main">
+      <!-- LEFT PANEL: Setup & Match Controls -->
+      <aside class="panel panel-left" aria-label="Game and Agent Configuration">
+        <div class="panel-header">
+          <h2 class="panel-title">Match Setup</h2>
+          <span id="badge-grid-formula" class="mono-badge">4×4 · 16B · 40E</span>
+        </div>
+
+        <div class="panel-body">
+          <!-- Board Topology & Starting Variant -->
+          <section class="config-section" aria-labelledby="sec-topology">
+            <h3 id="sec-topology" class="section-label">Board Geometry &amp; Variant</h3>
+            <div class="control-row two-col">
+              <div class="control-group">
+                <label for="select-grid-size">Box Grid (R×C)</label>
+                <select id="select-grid-size" class="input-select">
+                  <option value="3">3×3 Boxes (24 Edges)</option>
+                  <option value="4" selected>4×4 Boxes (40 Edges)</option>
+                  <option value="5">5×5 Boxes (60 Edges)</option>
+                  <option value="6">6×6 Boxes (84 Edges)</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="select-variant">Starting Variant</label>
+                <select id="select-variant" class="input-select">
+                  <option value="american" selected>American (E₀ = 0)</option>
+                  <option value="swedish">Swedish (E₀ = 2R+2C)</option>
+                  <option value="icelandic">Icelandic (E₀ = R+C)</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="topology-metrics-strip" class="metrics-mini-grid" aria-live="polite">
+              <div class="mini-stat" title="D = (R+1)(C+1) grid vertices">
+                <span class="mini-label">Dots (D)</span>
+                <span id="stat-dots" class="mini-val">25</span>
+              </div>
+              <div class="mini-stat" title="B = R * C boxes">
+                <span class="mini-label">Boxes (B)</span>
+                <span id="stat-boxes" class="mini-val">16</span>
+              </div>
+              <div class="mini-stat" title="E_total = 2RC + R + C total edges">
+                <span class="mini-label">Edges (E)</span>
+                <span id="stat-edges" class="mini-val">40</span>
+              </div>
+              <div class="mini-stat" title="Preset boundary edges drawn before move 1">
+                <span class="mini-label">Preset (E₀)</span>
+                <span id="stat-preset" class="mini-val">0</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Player 1 & Player 2 Controllers -->
+          <section class="config-section" aria-labelledby="sec-controllers">
+            <h3 id="sec-controllers" class="section-label">Player Controllers</h3>
+
+            <div class="player-config-card p1-card">
+              <div class="player-card-head">
+                <span class="player-dot p1-dot"></span>
+                <label for="select-p1-agent" class="player-card-title">Player 1 (Terracotta)</label>
+              </div>
+              <select id="select-p1-agent" class="input-select">
+                <option value="human" selected>Human Player</option>
+                <option value="greedy">Tier 1 — Greedy Heuristic</option>
+                <option value="minimax">Tier 2A — Minimax (No Pruning)</option>
+                <option value="alphabeta">Tier 2B — Alpha-Beta + Iterative Deepening</option>
+              </select>
+            </div>
+
+            <div class="player-config-card p2-card">
+              <div class="player-card-head">
+                <span class="player-dot p2-dot"></span>
+                <label for="select-p2-agent" class="player-card-title">Player 2 (Ultramarine)</label>
+              </div>
+              <select id="select-p2-agent" class="input-select">
+                <option value="human">Human Player</option>
+                <option value="greedy">Tier 1 — Greedy Heuristic</option>
+                <option value="minimax">Tier 2A — Minimax (No Pruning)</option>
+                <option value="alphabeta" selected>Tier 2B — Alpha-Beta + Iterative Deepening</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label for="select-hint-agent">Hint &amp; Inspection Agent</label>
+              <select id="select-hint-agent" class="input-select">
+                <option value="alphabeta" selected>Tier 2B — Alpha-Beta + Iterative Deepening</option>
+                <option value="minimax">Tier 2A — Minimax (No Pruning)</option>
+                <option value="greedy">Tier 1 — Greedy Heuristic</option>
+              </select>
+            </div>
+          </section>
+
+          <!-- Dynamic Agent Hyperparameters -->
+          <section id="hyperparams-alphabeta" class="config-section" aria-labelledby="sec-ab-params">
+            <h3 id="sec-ab-params" class="section-label">Search Budgets (Minimax &amp; Alpha-Beta)</h3>
+            <div class="control-row two-col">
+              <div class="control-group">
+                <label for="input-ab-depth" title="Maximum search depth in individual edge plies">Max Depth (Plies)</label>
+                <input id="input-ab-depth" type="number" class="input-number" min="1" max="18" value="6" />
+              </div>
+              <div class="control-group">
+                <label for="input-ab-time" title="Approximate wall-clock budget per move in milliseconds">Time Limit (ms)</label>
+                <input id="input-ab-time" type="number" class="input-number" min="50" max="10000" step="50" value="900" />
+              </div>
+            </div>
+            <div class="control-row two-col">
+              <div class="control-group">
+                <label for="input-ab-nodes" title="Hard limit on visited search tree nodes per move">Node Limit</label>
+                <input id="input-ab-nodes" type="number" class="input-number" min="100" max="500000" step="1000" value="60000" />
+              </div>
+              <div class="control-group">
+                <label for="input-prng-seed" title="Deterministic PRNG seed for Greedy tie-breaking">PRNG Seed</label>
+                <input id="input-prng-seed" type="number" class="input-number" min="1" max="999999" value="304" />
+              </div>
+            </div>
+            <label class="toggle-label" style="margin-top: 6px; display: flex; align-items: center; gap: 8px;">
+              <input id="toggle-iterative-deepening" type="checkbox" checked />
+              <span>Enable Iterative Deepening (1..MaxDepth)</span>
+            </label>
+          </section>
+
+          <!-- Execution & Match Transport Controls -->
+          <section class="config-section" aria-labelledby="sec-match-controls">
+            <h3 id="sec-match-controls" class="section-label">Game Controls &amp; Tactical Scenarios</h3>
+            <div class="control-row two-col">
+              <div class="control-group">
+                <label for="select-anim-speed">AI Turn Pacing</label>
+                <select id="select-anim-speed" class="input-select">
+                  <option value="40">Instant (40 ms)</option>
+                  <option value="180" selected>Fast (180 ms)</option>
+                  <option value="420">Standard (420 ms)</option>
+                  <option value="800">Step-by-Step (800 ms)</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="select-coord-mode">Coordinate Notation</label>
+                <select id="select-coord-mode" class="input-select">
+                  <option value="dual" selected>0-idx + 1-idx Dual</option>
+                  <option value="zero">0-Based Canonical</option>
+                  <option value="one">1-Based Human</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="button-grid-2x2">
+              <button id="btn-new-game" class="btn btn-primary" type="button">New Game</button>
+              <button id="btn-pause-resume" class="btn btn-secondary" type="button">Pause AI</button>
+              <button id="btn-undo" class="btn btn-ghost" type="button" disabled>Undo</button>
+              <button id="btn-redo" class="btn btn-ghost" type="button" disabled>Redo</button>
+            </div>
+
+
+          </section>
+        </div>
+      </aside>
+
+      <!-- CENTER PANEL: Interactive SVG Board & Move History -->
+      <section class="panel panel-center" aria-label="Interactive Game Board">
+        <!-- Scoreboard & Active Turn Banner -->
+        <div class="scoreboard-banner">
+          <div id="score-card-p1" class="score-card p1-score-card active-turn">
+            <div class="score-meta">
+              <span class="player-dot p1-dot"></span>
+              <div class="score-name-stack">
+                <span class="score-player-name">Player 1</span>
+                <span id="p1-role-tag" class="role-pill">Human</span>
+              </div>
+            </div>
+            <div id="score-val-p1" class="score-number">0</div>
+          </div>
+
+          <div class="turn-status-center">
+            <div id="turn-status-badge" class="turn-badge">Player 1 to move</div>
+            <div class="progress-counters">
+              <span>Played <strong id="counter-played">0</strong></span>
+              <span class="sep">·</span>
+              <span>Remaining <strong id="counter-remaining">40</strong></span>
+              <span class="sep">·</span>
+              <span>Preset <strong id="counter-preset">0</strong></span>
+            </div>
+          </div>
+
+          <div id="score-card-p2" class="score-card p2-score-card">
+            <div class="score-meta">
+              <span class="player-dot p2-dot"></span>
+              <div class="score-name-stack">
+                <span class="score-player-name">Player 2</span>
+                <span id="p2-role-tag" class="role-pill">Tier 2B Alpha-Beta</span>
+              </div>
+            </div>
+            <div id="score-val-p2" class="score-number">0</div>
+          </div>
+        </div>
+
+        <!-- SVG Canvas Container -->
+        <div class="board-stage-wrapper">
+          <div class="board-keyboard-bar">
+            <span id="focused-edge-indicator" class="mono-text">Click any dashed edge, or use Arrow keys + Enter/Space</span>
+            <span id="hovered-dual-correspondence" class="mono-text accent-cyan"></span>
+          </div>
+
+          <div class="svg-container" id="svg-board-container">
+            <svg
+              id="board-svg"
+              viewBox="0 0 640 640"
+              role="application"
+              aria-label="Interactive Dots and Boxes Board"
+              tabindex="0"
+            ></svg>
+          </div>
+
+
+        </div>
+
+        <!-- Bottom Split: Component Inventory & Move History Log -->
+        <div class="center-bottom-split">
+
+
+          <div class="subpanel">
+            <div class="subpanel-head">
+              <h4>Move History</h4>
+              <span id="history-count-badge" class="mono-badge">0 moves</span>
+            </div>
+            <div id="move-history-list" class="scroll-list mono-list" role="log" aria-label="Move History"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL: AI Analysis, Combinatorial Diagnostics, Telemetry & Tournament Lab -->
+      <aside class="panel panel-right" aria-label="AI Analysis, Diagnostics, and Tournament Benchmarking">
+        <div class="panel-header right-tabs-header">
+          <button id="tab-btn-telemetry" class="tab-btn active" type="button" data-tab="telemetry">
+            Analysis &amp; Search Telemetry
+          </button>
+          <button id="tab-btn-tournament" class="tab-btn" type="button" data-tab="tournament">
+            Tournament Benchmark
+          </button>
+        </div>
+
+        <!-- TAB 1: Explainable AI, Diagnostics & Live Search Telemetry -->
+        <div id="tab-panel-telemetry" class="panel-body">
+          <!-- Strategy Phase Classification -->
+          <section class="telemetry-card" aria-labelledby="sec-phase">
+            <div class="card-title-row">
+              <h3 id="sec-phase" class="section-label">Strategy Phase</h3>
+              <span id="badge-position-class" class="status-pill status-neutral">MIXED_POSITION</span>
+            </div>
+            <div id="strategy-phase-title" class="phase-banner">PHASE 1 — SAFE OPENING</div>
+            <div class="predicate-box">
+              <span class="predicate-label">Trigger:</span>
+              <code id="strategy-phase-predicate">hubs.length &gt; 0 &amp;&amp; captureMoves === 0 &amp;&amp; safeMoves &gt; 0</code>
+            </div>
+            <p id="strategy-phase-reason" class="diagnostic-paragraph">
+              All boxes currently have valence &lt; 2; safe neutral edges exist without creating a 3-sided box.
+            </p>
+          </section>
+
+          <!-- Search & Pruning Diagnostics -->
+          <section class="telemetry-card" aria-labelledby="sec-diagnostics">
+            <h3 id="sec-diagnostics" class="section-label">Search &amp; Pruning Diagnostics</h3>
+            <div class="diag-grid">
+              <div class="diag-item">
+                <div class="diag-head">
+                  <span class="mono-key">alphaBetaPruning</span>
+                  <span id="diag-pruning-badge" class="bool-pill bool-false">FALSE</span>
+                </div>
+                <p id="diag-pruning-reason" class="diag-subtext">Run an AI move or AI Hint to inspect pruning behavior.</p>
+              </div>
+
+              <div class="diag-item">
+                <div class="diag-head">
+                  <span class="mono-key">iterativeDeepening</span>
+                  <span id="diag-id-badge" class="bool-pill bool-false">FALSE</span>
+                </div>
+                <p id="diag-id-reason" class="diag-subtext">Searches depth 1..MaxDepth sequentially under the time budget.</p>
+              </div>
+
+              <div class="diag-item">
+                <div class="diag-head">
+                  <span class="mono-key">exactTerminalSearch</span>
+                  <span id="diag-exact-pos-badge" class="bool-pill bool-false">FALSE</span>
+                </div>
+                <p id="diag-exact-pos-reason" class="diag-subtext">True when search reaches terminal game completion within budget.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Estimated Final Score Differential Bar -->
+          <section class="telemetry-card" aria-labelledby="sec-advantage">
+            <div class="card-title-row">
+              <h3 id="sec-advantage" class="section-label" title="Represents Eval(s) = (score_P1 - score_P2) + V_rem(s) in boxes. Not a win probability gauge.">
+                Score Differential Scale (P1 − P2)
+              </h3>
+              <span id="eval-status-badge" class="status-pill status-heuristic">HEURISTIC</span>
+            </div>
+
+            <div class="advantage-bar-container" title="Left (Ultramarine) = Player 2 box lead | Center = 0 (Even) | Right (Terracotta) = Player 1 box lead">
+              <div class="advantage-labels">
+                <span>P2 Lead</span>
+                <span id="advantage-numeric-label" class="mono-val">0.0 Boxes (Even)</span>
+                <span>P1 Lead</span>
+              </div>
+              <div class="advantage-track">
+                <div class="advantage-center-tick"></div>
+                <div id="advantage-fill" class="advantage-fill" style="left: 50%; width: 0%;"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tactical Explanation -->
+          <section class="telemetry-card" aria-labelledby="sec-xai">
+            <div class="card-title-row">
+              <h3 id="sec-xai" class="section-label">Tactical Explanation</h3>
+              <span id="xai-recommended-move" class="mono-badge">Move: —</span>
+            </div>
+            <p id="xai-explanation-text" class="xai-narrative">
+              Click "AI Hint / Explain Move" or let an AI agent play a turn to inspect search reasoning and candidate evaluations.
+            </p>
+          </section>
+
+          <!-- Top-3 Candidate Moves Table -->
+          <section class="telemetry-card" aria-labelledby="sec-candidates">
+            <h3 id="sec-candidates" class="section-label">Candidate Move Evaluations</h3>
+            <div class="table-wrap">
+              <table class="studio-table" aria-label="Top candidate moves">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Edge (0-idx / 1-idx)</th>
+                    <th title="Future score differential V_rem(s) from P1 perspective">V_rem (P1)</th>
+                    <th title="Total estimated final score differential (P1 - P2)">Total Eval</th>
+                    <th>Status / Bound</th>
+                  </tr>
+                </thead>
+                <tbody id="candidate-moves-tbody">
+                  <tr>
+                    <td colspan="5" class="empty-cell">No AI evaluation executed on current state yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Live Search Metrics Grid -->
+          <section class="telemetry-card" aria-labelledby="sec-metrics">
+            <h3 id="sec-metrics" class="section-label">Search Telemetry</h3>
+            <div class="telemetry-metrics-grid">
+              <div class="t-metric" title="Total game tree nodes visited during the decision procedure">
+                <span class="t-label">Nodes Visited</span>
+                <span id="metric-nodes" class="t-val">N/A</span>
+              </div>
+              <div class="t-metric" title="Leaf / terminal nodes evaluated">
+                <span class="t-label">Leaf Evals</span>
+                <span id="metric-leaves" class="t-val">N/A</span>
+              </div>
+              <div class="t-metric" title="Alpha-Beta pruning cutoffs and percentage (cutoffs / nodesEvaluated * 100)">
+                <span class="t-label">AB Cutoffs (%)</span>
+                <span id="metric-cutoffs" class="t-val">N/A</span>
+              </div>
+              <div class="t-metric" title="Actual wall-clock computation time in milliseconds">
+                <span class="t-label">Search Time</span>
+                <span id="metric-time" class="t-val">N/A</span>
+              </div>
+              <div class="t-metric" title="Maximum completed iterative-deepening ply depth">
+                <span class="t-label">Depth Reached</span>
+                <span id="metric-depth" class="t-val">N/A</span>
+              </div>
+              <div class="t-metric" title="Current live score difference (score_P1 - score_P2) vs Estimated final difference">
+                <span class="t-label">Curr / Est Diff</span>
+                <span id="metric-diffs" class="t-val">0 / N/A</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- TAB 2: AI-vs-AI Tournament & Benchmarking System -->
+        <div id="tab-panel-tournament" class="panel-body hidden">
+          <section class="telemetry-card" aria-labelledby="sec-tourney-cfg">
+            <h3 id="sec-tourney-cfg" class="section-label">Batch Tournament Setup</h3>
+
+            <div class="control-row two-col">
+              <div class="control-group">
+                <label for="tourney-agent-a">Agent A</label>
+                <select id="tourney-agent-a" class="input-select">
+                  <option value="greedy" selected>Tier 1 — Greedy</option>
+                  <option value="minimax">Tier 2A — Minimax (No Pruning)</option>
+                  <option value="alphabeta">Tier 2B — Alpha-Beta + Iterative Deepening</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="tourney-agent-b">Agent B</label>
+                <select id="tourney-agent-b" class="input-select">
+                  <option value="greedy">Tier 1 — Greedy</option>
+                  <option value="minimax">Tier 2A — Minimax (No Pruning)</option>
+                  <option value="alphabeta" selected>Tier 2B — Alpha-Beta + Iterative Deepening</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="control-row three-col">
+              <div class="control-group">
+                <label for="tourney-grid-size">Board Size</label>
+                <select id="tourney-grid-size" class="input-select">
+                  <option value="3" selected>3×3 Boxes</option>
+                  <option value="4">4×4 Boxes</option>
+                  <option value="5">5×5 Boxes</option>
+                  <option value="6">6×6 Boxes</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="tourney-variant">Variant</label>
+                <select id="tourney-variant" class="input-select">
+                  <option value="american" selected>American</option>
+                  <option value="swedish">Swedish</option>
+                  <option value="icelandic">Icelandic</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="tourney-games">Match Count</label>
+                <input id="tourney-games" type="number" class="input-number" min="2" max="200" step="2" value="20" />
+              </div>
+            </div>
+
+            <div class="control-row three-col">
+              <div class="control-group">
+                <label for="tourney-seed">Base Seed</label>
+                <input id="tourney-seed" type="number" class="input-number" min="1" max="999999" value="304" />
+              </div>
+              <div class="control-group">
+                <label for="tourney-policy">First Player Policy</label>
+                <select id="tourney-policy" class="input-select">
+                  <option value="alternate" selected>Alternate (Balanced)</option>
+                  <option value="agentA_first">Agent A Always P1</option>
+                  <option value="agentB_first">Agent B Always P1</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="tourney-depth" title="Per-move search depth limit">Per-Move Budget</label>
+                <select id="tourney-depth" class="input-select">
+                  <option value="4" selected>Fast (Depth 4 / 150 iter)</option>
+                  <option value="5">Balanced (Depth 5 / 300 iter)</option>
+                  <option value="6">Deep (Depth 6 / 500 iter)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="tourney-action-row">
+              <button id="btn-run-tournament" class="btn btn-accent" type="button">Run Tournament</button>
+              <button id="btn-cancel-tournament" class="btn btn-danger" type="button" disabled>Cancel</button>
+              <button id="btn-export-json" class="btn btn-ghost" type="button" disabled>Export JSON</button>
+              <button id="btn-export-csv" class="btn btn-ghost" type="button" disabled>Export CSV</button>
+            </div>
+
+            <div class="tourney-progress-wrap">
+              <div class="progress-meta-row">
+                <span id="tourney-status-label" class="mono-text">Ready to run benchmark batch.</span>
+                <span id="tourney-progress-pct" class="mono-val">0%</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="tourney-progress-fill" class="progress-bar-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Aggregate Results Matrix -->
+          <section class="telemetry-card" aria-labelledby="sec-tourney-matrix">
+            <h3 id="sec-tourney-matrix" class="section-label">Win / Loss / Draw &amp; Performance Matrix</h3>
+            <div class="metrics-mini-grid four-col">
+              <div class="mini-stat">
+                <span class="mini-label">Completed</span>
+                <span id="t-stat-completed" class="mini-val">0 / 0</span>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-label">P1 Wins</span>
+                <span id="t-stat-p1wins" class="mini-val">0</span>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-label">P2 Wins</span>
+                <span id="t-stat-p2wins" class="mini-val">0</span>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-label">Draws</span>
+                <span id="t-stat-draws" class="mini-val">0</span>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="studio-table" aria-label="Tournament agent matrix">
+                <thead>
+                  <tr>
+                    <th>Competitor</th>
+                    <th>W / L / D</th>
+                    <th>Win %</th>
+                    <th>Avg Diff</th>
+                    <th>Avg / Med ms</th>
+                    <th>Avg Nodes</th>
+                  </tr>
+                </thead>
+                <tbody id="tourney-matrix-tbody">
+                  <tr>
+                    <td colspan="6" class="empty-cell">Run a tournament batch to populate aggregate metrics.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Per-Game Match Records -->
+          <section class="telemetry-card" aria-labelledby="sec-tourney-games">
+            <h3 id="sec-tourney-games" class="section-label">Match Records</h3>
+            <div class="table-wrap scroll-table-wrap">
+              <table class="studio-table" aria-label="Per-game tournament records">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Seed</th>
+                    <th>P1 Agent</th>
+                    <th>P2 Agent</th>
+                    <th>Score (P1–P2)</th>
+                    <th>Diff</th>
+                    <th>Winner</th>
+                  </tr>
+                </thead>
+                <tbody id="tourney-games-tbody">
+                  <tr>
+                    <td colspan="7" class="empty-cell">No games recorded yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

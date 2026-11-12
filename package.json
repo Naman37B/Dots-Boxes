@@ -1,0 +1,14 @@
+{
+  "name": "csl304-dots-and-boxes-ai-studio",
+  "version": "1.0.0",
+  "description": "CSL304 AI Research Studio — Dots & Boxes: Combinatorial Game Theory, Adversarial Search, Explainable AI, and Tournament Benchmarking",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/core.test.js tests/agents.test.js",
+    "benchmark": "node scripts/benchmark.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
